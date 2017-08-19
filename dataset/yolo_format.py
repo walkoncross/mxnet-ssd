@@ -1,6 +1,7 @@
+from __future__ import absolute_import
 import os
 import numpy as np
-from imdb import Imdb
+from .imdb import Imdb
 
 
 class YoloFormat(Imdb):
@@ -36,7 +37,7 @@ class YoloFormat(Imdb):
                 classes = [l.strip() for l in f.readlines()]
                 num_classes = len(classes)
         else:
-            raise ValueError, "classes should be list/tuple or text file"
+            raise ValueError("classes should be list/tuple or text file")
         assert num_classes > 0, "number of classes must > 0"
         super(YoloFormat, self).__init__(name + '_' + str(num_classes))
         self.classes = classes
@@ -102,7 +103,7 @@ class YoloFormat(Imdb):
         ground-truths of this image
         """
         assert self.labels is not None, "Labels not processed"
-        return self.labels[index, :, :]
+        return self.labels[index]
 
     def _label_path_from_index(self, index):
         """
@@ -130,7 +131,6 @@ class YoloFormat(Imdb):
         labels packed in [num_images x max_num_objects x 5] tensor
         """
         temp = []
-        max_objects = 0
 
         # load ground-truths
         for idx in self.image_set_index:
@@ -151,13 +151,4 @@ class YoloFormat(Imdb):
                     ymax = y + half_height
                     label.append([cls_id, xmin, ymin, xmax, ymax])
                 temp.append(np.array(label))
-                max_objects = max(max_objects, len(label))
-        # add padding to labels so that the dimensions match in each batch
-        assert max_objects > 0, "No objects found for any of the images"
-        self.padding = max_objects
-        labels = []
-        for label in temp:
-            label = np.lib.pad(label, ((0, max_objects-label.shape[0]), (0,0)), \
-                               'constant', constant_values=(-1, -1))
-            labels.append(label)
-        return np.array(labels)
+        return temp

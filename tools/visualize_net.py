@@ -1,12 +1,14 @@
-import find_mxnet
+from __future__ import print_function, absolute_import
+import os.path as osp
+from . import find_mxnet
 import mxnet as mx
-import importlib
 import argparse
-import sys
+from symbol import symbol_factory
+
+
 
 parser = argparse.ArgumentParser(description='network visualization')
 parser.add_argument('--network', type=str, default='vgg16_reduced',
-                    choices = ['vgg16_reduced'],
                     help = 'the cnn to use')
 parser.add_argument('--num-classes', type=int, default=20,
                     help='the number of classes')
@@ -15,13 +17,12 @@ parser.add_argument('--data-shape', type=int, default=300,
 parser.add_argument('--train', action='store_true', default=False, help='show train net')
 args = parser.parse_args()
 
-sys.path.append('../symbol')
-
 if not args.train:
-    net = importlib.import_module("symbol_" + args.network).get_symbol(args.num_classes)
+    net = symbol_factory.get_symbol(args.network, args.data_shape, num_classes=args.num_classes)
     a = mx.viz.plot_network(net, shape={"data":(1,3,args.data_shape,args.data_shape)}, \
         node_attrs={"shape":'rect', "fixedsize":'false'})
-    a.render("ssd_" + args.network)
+    filename = "ssd_" + args.network + '_' + str(args.data_shape)
+    a.render(osp.join(osp.dirname(__file__), filename))
 else:
-    net = importlib.import_module("symbol_" + args.network).get_symbol_train(args.num_classes)
-    print net.tojson()
+    net = symbol_factory.get_symbol_train(args.network, args.data_shape, num_classes=args.num_classes)
+    print(net.tojson())

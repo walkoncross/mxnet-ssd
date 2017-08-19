@@ -1,6 +1,7 @@
+from __future__ import print_function, absolute_import
 import os
 import numpy as np
-from imdb import Imdb
+from .imdb import Imdb
 import xml.etree.ElementTree as ET
 from evaluate.eval_voc import voc_eval
 import cv2
@@ -23,7 +24,8 @@ class PascalVoc(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False):
+    def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False,
+            names='pascal_voc.names'):
         super(PascalVoc, self).__init__('voc_' + year + '_' + image_set)
         self.image_set = image_set
         self.year = year
@@ -32,15 +34,11 @@ class PascalVoc(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['aeroplane', 'bicycle', 'bird', 'boat',
-                        'bottle', 'bus', 'car', 'cat', 'chair',
-                        'cow', 'diningtable', 'dog', 'horse',
-                        'motorbike', 'person', 'pottedplant',
-                        'sheep', 'sofa', 'train', 'tvmonitor']
+        self.classes = self._load_class_names(names,
+            os.path.join(os.path.dirname(__file__), 'names'))
 
         self.config = {'use_difficult': True,
-                       'comp_id': 'comp4',
-                       'padding': 56}
+                       'comp_id': 'comp4',}
 
         self.num_classes = len(self.classes)
         self.image_set_index = self._load_image_set_index(shuffle)
@@ -113,7 +111,7 @@ class PascalVoc(Imdb):
         ground-truths of this image
         """
         assert self.labels is not None, "Labels not processed"
-        return self.labels[index, :, :]
+        return self.labels[index]
 
     def _label_path_from_index(self, index):
         """
@@ -129,7 +127,7 @@ class PascalVoc(Imdb):
         full path of annotation file
         """
         label_file = os.path.join(self.data_path, 'Annotations', index + '.xml')
-        assert os.path.exists(label_file), 'Path does not exist: {}'.format(image_file)
+        assert os.path.exists(label_file), 'Path does not exist: {}'.format(label_file)
         return label_file
 
     def _load_image_labels(self):
@@ -141,7 +139,6 @@ class PascalVoc(Imdb):
         labels packed in [num_images x max_num_objects x 5] tensor
         """
         temp = []
-        max_objects = 0
 
         # load ground-truth from xml annotations
         for idx in self.image_set_index:
@@ -155,8 +152,8 @@ class PascalVoc(Imdb):
 
             for obj in root.iter('object'):
                 difficult = int(obj.find('difficult').text)
-                if not self.config['use_difficult'] and difficult == 1:
-                    continue
+                # if not self.config['use_difficult'] and difficult == 1:
+                #     continue
                 cls_name = obj.find('name').text
                 if cls_name not in self.classes:
                     continue
@@ -166,22 +163,9 @@ class PascalVoc(Imdb):
                 ymin = float(xml_box.find('ymin').text) / height
                 xmax = float(xml_box.find('xmax').text) / width
                 ymax = float(xml_box.find('ymax').text) / height
-                label.append([cls_id, xmin, ymin, xmax, ymax])
+                label.append([cls_id, xmin, ymin, xmax, ymax, difficult])
             temp.append(np.array(label))
-            max_objects = max(max_objects, len(label))
-
-        # add padding to labels so that the dimensions match in each batch
-        # TODO: design a better way to handle label padding
-        assert max_objects > 0, "No objects found for any of the images"
-        assert max_objects <= self.config['padding'], "# obj exceed padding"
-        self.padding = self.config['padding']
-        labels = []
-        for label in temp:
-            label = np.lib.pad(label, ((0, self.padding-label.shape[0]), (0,0)), \
-                               'constant', constant_values=(-1, -1))
-            labels.append(label)
-
-        return np.array(labels)
+        return temp
 
     def evaluate_detections(self, detections):
         """
@@ -235,7 +219,7 @@ class PascalVoc(Imdb):
         None
         """
         for cls_ind, cls in enumerate(self.classes):
-            print 'Writing {} VOC results file'.format(cls)
+            print('Writing {} VOC results file'.format(cls))
             filename = self.get_result_file_template().format(cls)
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.image_set_index):
@@ -265,7 +249,7 @@ class PascalVoc(Imdb):
         aps = []
         # The PASCAL VOC metric changed in 2010
         use_07_metric = True if int(self.year) < 2010 else False
-        print 'VOC07 metric? ' + ('Y' if use_07_metric else 'No')
+        print('VOC07 metric? ' + ('Y' if use_07_metric else 'No'))
         for cls_ind, cls in enumerate(self.classes):
             filename = self.get_result_file_template().format(cls)
             rec, prec, ap = voc_eval(filename, annopath, imageset_file, cls, cache_dir,

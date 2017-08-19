@@ -4,6 +4,11 @@ data/*
 model/*
 !model/README.md
 cache/*
+tools/caffe_converter/*.params
+tools/caffe_converter/*.json
+tools/caffe_converter/*.prototxt
+tools/caffe_converter/*.caffemodel
+.DS_Store
 
 # Compiled Object files
 *.slo
